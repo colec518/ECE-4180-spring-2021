@@ -82,6 +82,9 @@ int currentDigit = 0;
 #define MONTH 4
 #define YEAR 5
 
+bool alarmOn = 0;
+int alarmTime = 0;
+
 char menuText[][64] = {
   "EDIT\nTIME",
   "EDIT\nDATE"
@@ -94,6 +97,10 @@ void setup() {
     pinMode(buttonPins[i], INPUT);
     buttons[i] = {buttonPins[i], 1, 1, 0, 0};
   }
+
+  ledcSetup(0, 1000, 16);
+  ledcAttachPin(23, 0);
+  ledcWrite(0, 0);
 
   matrix.addLayer(&backgroundLayer);
   matrix.addLayer(&scrollingLayer);
@@ -113,6 +120,10 @@ void setup() {
 void loop() {
   //struct tm *timeInfo;
   //timeInfo = localtime(&currentTime);
+
+  if(alarmOn && millis() - alarmTime > 20) {
+    stopAlarm();
+  }
 
   switch (programState) {
     case DISPLAY_TIME:
@@ -168,6 +179,7 @@ void updateButtons() {
 
 //take action based on which button has been pressed
 void handleButton(int bNum) {
+  startAlarm();
   switch (programState) {
     case DISPLAY_TIME:
       if (bNum == 3) {
@@ -269,6 +281,17 @@ void handleButton(int bNum) {
       }
       break;
   }
+}
+
+void startAlarm() {
+  alarmOn = 1;
+  alarmTime = millis();
+  ledcWrite(0, 65535/2);
+}
+
+void stopAlarm() {
+  alarmOn = 0;
+  ledcWrite(0, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
