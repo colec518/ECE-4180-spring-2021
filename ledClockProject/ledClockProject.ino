@@ -25,6 +25,7 @@ SMARTMATRIX_ALLOCATE_INDEXED_LAYER(indexedLayer, kMatrixWidth, kMatrixHeight, CO
 const int defaultBrightness = 100;
 const int defaultScrollOffset = 6;
 const rgb24 defaultBackgroundColor = {0x40, 0, 0};
+const rgb24 sunlightColor = {0xff, 0xca, 0x7c};
 
 ////////////////////////////////////////////////////////////////////////////////
 //BUTTON VARIABLES
@@ -48,15 +49,22 @@ button buttons[4];
 ////////////////////////////////////////////////////////////////////////////////
 
 time_t currentTime = 1619132563;
+time_t alarmTime = 0;
 struct tm *currentTimeInfo;
+bool alarmOn = 0;
+
 int lastMillis = 0;
+int alarmStartMillis = 0;
+
+int alarmLightPeriod = 60 * 1000;
+int fullBrightnessTime = alarmLightPeriod / 5;
 
 /*int tempSecond = 0;
-int tempMinute = 0;
-int tempHour = 0;
-int tempDay = 0;
-int tempMonth = 0;
-int tempYear = 0;*/
+  int tempMinute = 0;
+  int tempHour = 0;
+  int tempDay = 0;
+  int tempMonth = 0;
+  int tempYear = 0;*/
 
 ////////////////////////////////////////////////////////////////////////////////
 //USER INTERFACE VARIABLES
@@ -67,12 +75,15 @@ int programState = 0;
 #define MENU 1
 #define SET_TIME 2
 #define SET_DATE 3
+#define SET_ALARM 4
+#define ALARM_REACHED 5
 
 int menuSelection = 0;
 #define M_SET_TIME 0
 #define M_SET_DATE 1
+#define M_SET_ALARM 2
 
-#define M_NUM_OPTIONS 2
+#define M_NUM_OPTIONS 3
 
 int currentDigit = 0;
 #define SECOND 0
@@ -82,13 +93,8 @@ int currentDigit = 0;
 #define MONTH 4
 #define YEAR 5
 
-bool alarmOn = 0;
-int alarmTime = 0;
-
-char menuText[][64] = {
-  "EDIT\nTIME",
-  "EDIT\nDATE"
-};
+bool beepPlaying = 0;
+int beepTime = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -115,26 +121,33 @@ void setup() {
   backgroundLayer.setFont(font5x7);
 
   lastMillis = millis();
+
 }
 
 void loop() {
   //struct tm *timeInfo;
   //timeInfo = localtime(&currentTime);
 
-  if(alarmOn && millis() - alarmTime > 20) {
-    stopAlarm();
+  if (beepPlaying && millis() - beepTime > 20) {
+    stopBeep();
   }
+
+  if (programState != SET_TIME && programState != SET_DATE && millis() - lastMillis > 1000) {
+    lastMillis = millis();
+    currentTime++;
+  }
+
 
   switch (programState) {
     case DISPLAY_TIME:
-      if (millis() - lastMillis > 1000) {
-        struct tm *timeInfo;
-        timeInfo = localtime(&currentTime);
-        lastMillis = millis();
-        currentTime++;
+      currentTimeInfo = localtime(&currentTime);
 
-        drawTimeDate(timeInfo);
+      if (alarmOn && currentTime >= alarmTime) {
+        programState = ALARM_REACHED;
+        alarmStartMillis = millis();
       }
+
+      drawTimeDate(currentTimeInfo);
       break;
     case MENU:
       drawMenu();
@@ -144,6 +157,12 @@ void loop() {
       break;
     case SET_DATE:
       drawEditDate(currentTimeInfo);
+      break;
+    case SET_ALARM:
+      drawEditTime(currentTimeInfo);
+      break;
+    case ALARM_REACHED:
+      handleAlarm();
       break;
   }
 
@@ -179,7 +198,7 @@ void updateButtons() {
 
 //take action based on which button has been pressed
 void handleButton(int bNum) {
-  startAlarm();
+  startBeep();
   switch (programState) {
     case DISPLAY_TIME:
       if (bNum == 3) {
@@ -213,6 +232,20 @@ void handleButton(int bNum) {
               programState = SET_DATE;
               currentTimeInfo = localtime(&currentTime);
               break;
+            case M_SET_ALARM:
+              currentDigit = HOUR;
+              programState = SET_ALARM;
+
+              if (alarmTime == 0) {
+                currentTimeInfo = localtime(&currentTime);
+                currentTimeInfo->tm_hour = 0;
+                currentTimeInfo->tm_min = 0;
+                currentTimeInfo->tm_sec = 0;
+                alarmTime = mktime(currentTimeInfo);
+              }
+
+              currentTimeInfo = localtime(&alarmTime);
+              break;
           }
       }
       break;
@@ -221,6 +254,7 @@ void handleButton(int bNum) {
         case 0:
           if (currentDigit == HOUR) {
             currentTime = mktime(currentTimeInfo);
+            updateAlarmTime();
             programState = DISPLAY_TIME;
           }
           else {
@@ -230,6 +264,7 @@ void handleButton(int bNum) {
         case 1:
           if (currentDigit == MINUTE) {
             currentTime = mktime(currentTimeInfo);
+            updateAlarmTime();
             programState = DISPLAY_TIME;
           }
           else {
@@ -253,6 +288,7 @@ void handleButton(int bNum) {
         case 0:
           if (currentDigit == MONTH) {
             currentTime = mktime(currentTimeInfo);
+            updateAlarmTime();
             programState = DISPLAY_TIME;
           }
           else if (currentDigit == DAY) currentDigit = MONTH;
@@ -261,6 +297,7 @@ void handleButton(int bNum) {
         case 1:
           if (currentDigit == YEAR) {
             currentTime = mktime(currentTimeInfo);
+            updateAlarmTime();
             programState = DISPLAY_TIME;
           }
           else if (currentDigit == DAY) currentDigit = YEAR;
@@ -280,23 +317,110 @@ void handleButton(int bNum) {
           break;
       }
       break;
+    case SET_ALARM:
+      switch (bNum) {
+        case 0:
+          if (currentDigit == HOUR) {
+            alarmTime = mktime(currentTimeInfo);
+            updateAlarmTime();
+            alarmOn = 1;
+            programState = DISPLAY_TIME;
+          }
+          else {
+            currentDigit = HOUR;
+          }
+          break;
+        case 1:
+          if (currentDigit == MINUTE) {
+            alarmTime = mktime(currentTimeInfo);
+            updateAlarmTime();
+            alarmOn = 1;
+            programState = DISPLAY_TIME;
+          }
+          else {
+            currentDigit = MINUTE;
+          }
+          break;
+        case 2:
+          if (currentDigit == HOUR) currentTimeInfo->tm_hour = currentTimeInfo->tm_hour - 1;
+          else if (currentDigit == MINUTE) currentTimeInfo->tm_min = currentTimeInfo->tm_min - 1;
+          mktime(currentTimeInfo);
+          break;
+        case 3:
+          if (currentDigit == HOUR) currentTimeInfo->tm_hour = currentTimeInfo->tm_hour + 1;
+          else if (currentDigit == MINUTE) currentTimeInfo->tm_min = currentTimeInfo->tm_min + 1;
+          mktime(currentTimeInfo);
+          break;
+      }
+      break;
+    case ALARM_REACHED:
+      updateAlarmTime();
+      programState = DISPLAY_TIME;
+      ledcWrite(0, 0);
+      matrix.setBrightness(defaultBrightness);
+      break;
   }
 }
 
-void startAlarm() {
-  alarmOn = 1;
-  alarmTime = millis();
-  ledcWrite(0, 65535/2);
+
+void startBeep() {
+  beepPlaying = 1;
+  beepTime = millis();
+  ledcWrite(0, 65535 / 2);
 }
 
-void stopAlarm() {
-  alarmOn = 0;
+void stopBeep() {
+  beepPlaying = 0;
   ledcWrite(0, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //CLOCK FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////
+
+void handleAlarm() {
+  int timeSinceAlarm = millis() - alarmStartMillis;
+
+  if (timeSinceAlarm <= fullBrightnessTime) {
+    int brightness = 255 * (float(timeSinceAlarm) / float(fullBrightnessTime));
+
+    matrix.setBrightness(brightness);
+  }
+
+  if (timeSinceAlarm >= alarmLightPeriod) {
+    if(millis() % 500 > 200) {
+      ledcWrite(0, 65535 / 2);
+    }
+    else {
+      ledcWrite(0, 0);
+    }
+  }
+
+  backgroundLayer.fillScreen(sunlightColor);
+  backgroundLayer.swapBuffers();
+}
+
+//update the alarm so that it occurs at the same time the next day
+void updateAlarmTime() {
+  currentTimeInfo = localtime(&alarmTime);
+  int alarmHour = currentTimeInfo->tm_hour;
+  int alarmMinute = currentTimeInfo->tm_min;
+  int alarmSecond = currentTimeInfo->tm_sec;
+
+  currentTimeInfo = localtime(&currentTime);
+  if (currentTimeInfo->tm_hour < alarmHour || (currentTimeInfo->tm_hour == alarmHour && currentTimeInfo->tm_min < alarmMinute)) {
+    currentTimeInfo->tm_mday = currentTimeInfo->tm_mday;
+  }
+  else {
+    currentTimeInfo->tm_mday = currentTimeInfo->tm_mday + 1;
+  }
+  currentTimeInfo->tm_hour = alarmHour;
+  currentTimeInfo->tm_min = alarmMinute;
+  currentTimeInfo->tm_sec = alarmSecond;
+
+  alarmTime = mktime(currentTimeInfo);
+  currentTimeInfo = localtime(&currentTime);
+}
 
 /*void loadTempTime() {
   struct tm *timeInfo;
@@ -309,9 +433,9 @@ void stopAlarm() {
   tempDay = timeInfo->tm_mday;
   tempMonth = timeInfo->tm_mon;
   tempYear = timeInfo->tm_year;
-}
+  }
 
-void saveTempTime() {
+  void saveTempTime() {
   struct tm *timeInfo;
   timeInfo = localtime(&currentTime);
 
@@ -324,7 +448,7 @@ void saveTempTime() {
 
   currentTime = mktime(timeInfo);
   currentTimeInfo = localtime(&currentTime);
-}*/
+  }*/
 
 ////////////////////////////////////////////////////////////////////////////////
 //MATRIX FUNCTIONS
@@ -351,7 +475,7 @@ void drawMenu() {
   backgroundLayer.setFont(font5x7);
   //backgroundLayer.drawString(0, 0, {255, 255, 255}, menuText[menuSelection]);
 
-  switch(menuSelection) {
+  switch (menuSelection) {
     case 0:
       backgroundLayer.drawString(0, 0, {255, 255, 255}, "edit");
       backgroundLayer.drawString(0, 8, {255, 255, 255}, "time");
@@ -360,8 +484,12 @@ void drawMenu() {
       backgroundLayer.drawString(0, 0, {255, 255, 255}, "edit");
       backgroundLayer.drawString(0, 8, {255, 255, 255}, "date");
       break;
+    case 2:
+      backgroundLayer.drawString(0, 0, {255, 255, 255}, "set");
+      backgroundLayer.drawString(0, 8, {255, 255, 255}, "alarm");
+      break;
   }
-  
+
   backgroundLayer.swapBuffers();
 }
 
