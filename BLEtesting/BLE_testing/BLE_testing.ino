@@ -66,7 +66,13 @@ long gmtOffsetSeconds=-4*3600;
 //has same signature ase the actual function
 void handleButton(int bNum){
   if(DEBUG)Serial.printf("Button Presed: %d\n",bNum);
-  if(bNum==0) bluetoothMode=1;
+  if(bNum==0){
+    pTxCharacteristic->setValue("Please enter your WiFi information:\n");
+    pTxCharacteristic->notify();
+    pTxCharacteristic->setValue("SSID:\n");
+    pTxCharacteristic->notify();
+    bluetoothMode=1;
+  }
 }
 
 //will connect and get the time
@@ -88,7 +94,7 @@ boolean wifiTimeSet(){
   if(DEBUG)Serial.println(" CONNECTED");
   //get the time from the web
   //need to fix daylight savings
-  configTime(gmtOffsetSeconds, 0, "pool.ntp.org","time.nist.gov");
+  configTime(gmtOffsetSeconds, 3600, "pool.ntp.org","time.nist.gov");
   //check if time was recived
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
@@ -142,12 +148,21 @@ class MyCallbacks: public BLECharacteristicCallbacks {
             break;
           case 1:
             wifi_ssid=rxValue.substr(0,rxValue.length()-1);
+            pTxCharacteristic->setValue("Password:");
+            pTxCharacteristic->notify();
             bluetoothMode=2;
             break;
           case 2:
             wifi_password=rxValue.substr(0,rxValue.length()-1);
             bluetoothMode=0;
             bool wifiRet=wifiTimeSet();
+            if(wifiRet){
+              pTxCharacteristic->setValue("Connection Sucessful\n");
+              pTxCharacteristic->notify();
+            }else{
+              pTxCharacteristic->setValue("Connection Failure\n");
+              pTxCharacteristic->notify();
+            }
             if(DEBUG)Serial.printf("wifiTimeSet return: %s\n",wifiRet?"True":"False");
             break;
         }
