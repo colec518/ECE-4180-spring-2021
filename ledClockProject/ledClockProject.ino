@@ -14,7 +14,8 @@ char bluetoothMode = 0;
 //2-map data to wifi_password
 std::string wifi_ssid = "";
 std::string wifi_password = "";
-long gmtOffsetSeconds = -4 * 3600;
+long gmtOffsetHours = -4;
+bool daylightSavingsEnabled=true;
 
 ////////////////////////////////////////////////////////////////////////////////
 //MATRIX VARIABLES
@@ -91,13 +92,18 @@ int programState = 0;
 #define SET_DATE 3
 #define SET_ALARM 4
 #define ALARM_REACHED 5
+#define CONNECT_BLUETOOTH 6
+#define GET_WIFI_INFO 7
+#define SET_TIMEZONE 8
+#define SET_DAYLIGHT 9
 
 int menuSelection = 0;
 #define M_SET_TIME 0
 #define M_SET_DATE 1
 #define M_SET_ALARM 2
+#define M_SET_AUTO 3
 
-#define M_NUM_OPTIONS 3
+#define M_NUM_OPTIONS 4
 
 int currentDigit = 0;
 #define SECOND 0
@@ -114,7 +120,7 @@ int beepTime = 0;
 //WIFI/BLUETOOTH VARIABLES
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DEBUG true
+#define DEBUG false
 
 BLEServer *pServer = NULL;
 BLECharacteristic * pTxCharacteristic;
@@ -129,6 +135,10 @@ uint8_t txValue = 0;
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
+
+////////////////////////////////////////////////////////////////////////////////
+//Program Start
+////////////////////////////////////////////////////////////////////////////////
 void setup() {
   Serial.begin(115200);
 
@@ -199,8 +209,19 @@ void loop() {
     case ALARM_REACHED:
       handleAlarm();
       break;
+    case CONNECT_BLUETOOTH:
+      drawText("connect","Bluetooth");
+      break;
+    case GET_WIFI_INFO:
+      if(bluetoothMode==2)drawText("WiFi","Password");
+      else drawText("WiFi","SSID");
+      break;
+    case SET_TIMEZONE:
+      drawTimeZoneEdit();
+      break;
+    case SET_DAYLIGHT:
+      drawDaylightEdit();
   }
-
   updateButtons();
   bluetoothConnectionCheck();
 }
@@ -281,6 +302,10 @@ void handleButton(int bNum) {
               }
 
               currentTimeInfo = localtime(&alarmTime);
+              break;
+            case M_SET_AUTO:
+              bluetoothMode=1;
+              //TODO: more stuff need to go here
               break;
           }
       }
@@ -395,9 +420,60 @@ void handleButton(int bNum) {
       ledcWrite(0, 0);
       matrix.setBrightness(defaultBrightness);
       break;
+    case CONNECT_BLUETOOTH:
+      if(deviceConnected){
+        programState=GET_WIFI_INFO;
+        bluetoothAskForSsid();
+      }
+      if(bNum==2)programState=DISPLAY_TIME;
+      break;
+    case GET_WIFI_INFO:
+      switch(bluetoothMode){
+        case 0://has password and SSID
+          //waiting for connectiion sucess or failure;
+          if(WiFi.status()==WL_CONNECTED)programState=SET_TIMEZONE;
+          break;
+        case 1://getting SSID
+          //noting to do here
+          break;
+        case 2://getting Password
+          //check back button
+          if(bNum==2)bluetoothAskForSsid();
+          break;
+      }
+    case SET_TIMEZONE:
+      switch(bNum){
+        case 0: //decrease
+          gmtOffsetHours=(gmtOffsetHours<=-12)?-12:gmtOffsetHours-1;
+          break;
+        case 1: //increase
+          gmtOffsetHours=(gmtOffsetHours>=12)?12:gmtOffsetHours+1;
+          break;
+        case 2:
+          programState=deviceConnected?GET_WIFI_INFO:DISPLAY_TIME;
+          break;
+        case 3: //enter
+          programState=SET_DAYLIGHT;
+          break;
+      }
+      break;
+    case SET_DAYLIGHT:
+      switch(bNum){
+        case 0: //togel
+        case 1: //togel
+          daylightSavingsEnabled=!daylightSavingsEnabled;
+          break;
+        case 2:
+          programState=SET_TIMEZONE;
+          break;
+        case 3: //enter
+          //perform the timeset
+          if(wifiTimeSet()) currentTime=time(0);
+          programState=DISPLAY_TIME;
+          break;
+      }
   }
 }
-
 
 void startBeep() {
   beepPlaying = 1;
@@ -524,6 +600,10 @@ void drawMenu() {
       backgroundLayer.drawString(0, 0, {255, 255, 255}, "set");
       backgroundLayer.drawString(0, 8, {255, 255, 255}, "alarm");
       break;
+    case 3:
+      backgroundLayer.drawString(0, 0, {255, 255, 255}, "auto");
+      backgroundLayer.drawString(0, 8, {255, 255, 255}, "set");
+      break;
   }
 
   backgroundLayer.swapBuffers();
@@ -571,6 +651,43 @@ void drawEditDate(tm *timeInfo) {
       break;
   }
 
+  backgroundLayer.swapBuffers();
+}
+//simple function to draw two lines of text
+void drawText(String top,String bot){
+  backgroundLayer.fillScreen({0, 0, 0});
+  backgroundLayer.setFont(font5x7);
+  backgroundLayer.drawString(0, 0, {255, 255, 255}, top.c_str());
+  backgroundLayer.drawString(0, 8, {255, 255, 255}, bot.c_str());
+  backgroundLayer.swapBuffers();
+}
+void drawTimeZoneEdit(){
+  backgroundLayer.fillScreen({0, 0, 0});
+  backgroundLayer.setFont(font3x5);
+  //draw the text portion
+  char text[32];
+  sprintf(text,"GMT%c%d",(gmtOffsetHours<0)?'-':'+',(gmtOffsetHours<0)?-gmtOffsetHours:gmtOffsetHours);
+  backgroundLayer.drawString(0, 0, {255, 255, 255}, text);
+  //draw the underline
+  backgroundLayer.drawString(0, 6, {255, 255, 255}, "   ___");
+  backgroundLayer.swapBuffers();
+}
+void drawDaylightEdit(){
+  backgroundLayer.fillScreen({0, 0, 0});
+  backgroundLayer.setFont(font3x5);
+  //draw the text portion
+  if(daylightSavingsEnabled){
+    //draw the text portion
+    backgroundLayer.drawString(0, 0, {255, 255, 255}, "DST Yes");
+    //draw the underline
+    backgroundLayer.drawString(0, 6, {255, 255, 255}, "    ___");
+  }
+  else{
+    //draw the text portion
+    backgroundLayer.drawString(0, 0, {255, 255, 255}, "DST No");
+    //draw the underline
+    backgroundLayer.drawString(0, 6, {255, 255, 255}, "    __");
+  }
   backgroundLayer.swapBuffers();
 }
 
@@ -636,15 +753,8 @@ class MyCallbacks: public BLECharacteristicCallbacks {
           case 2:
             wifi_password = rxValue.substr(0, rxValue.length() - 1);
             bluetoothMode = 0;
-            bool wifiRet = wifiTimeSet();
-            if (wifiRet) {
-              pTxCharacteristic->setValue("Connection Sucessful\n");
-              pTxCharacteristic->notify();
-            } else {
-              pTxCharacteristic->setValue("Connection Failure\n");
-              pTxCharacteristic->notify();
-            }
-            if (DEBUG)Serial.printf("wifiTimeSet return: %s\n", wifiRet ? "True" : "False");
+            bool wifiRet = wifiConnect();
+            if (DEBUG)Serial.printf("wifiConnect return: %s\n", wifiRet ? "True" : "False");
             break;
         }
         if (DEBUG)Serial.printf("Mode: %d\n", bluetoothMode);
@@ -661,32 +771,47 @@ class MyCallbacks: public BLECharacteristicCallbacks {
       }
     }
 };
+//function for asking for the SSID
+void bluetoothAskForSsid(){
+  pTxCharacteristic->setValue("Please enter your WiFi information:\n");
+  pTxCharacteristic->notify();
+  pTxCharacteristic->setValue("SSID:\n");
+  pTxCharacteristic->notify();
+  bluetoothMode=1;
+}
 
 
 //will connect and get the time
 //true if sucsefull
 //false if failure
-boolean wifiTimeSet(){
-  //still needs to decide on the gmtOffset
+boolean wifiConnect(){
   if(DEBUG)Serial.printf("Connecting to %s ", wifi_ssid.c_str());
   WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str());
   while (WiFi.status() != WL_CONNECTED) {
       //may need to protect from failures
       if(WiFi.status() == WL_CONNECTION_LOST){
         if(DEBUG)Serial.print(" Connection Failed\n");
+        pTxCharacteristic->setValue("Connection Failed\n");
+        pTxCharacteristic->notify();
         return false;
       }
       delay(500);
       if(DEBUG)Serial.print(".");
   }
   if(DEBUG)Serial.println(" CONNECTED");
+  pTxCharacteristic->setValue("Connected\n");
+  pTxCharacteristic->notify();
+  return true;
+}
+boolean wifiTimeSet(){
   //get the time from the web
-  //need to fix daylight savings
-  configTime(gmtOffsetSeconds, 3600, "pool.ntp.org","time.nist.gov");
+  configTime(gmtOffsetHours*3600, daylightSavingsEnabled?3600:0, "pool.ntp.org","time.nist.gov");
   //check if time was recived
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
     if(DEBUG)Serial.println("Failed to obtain time");
+    pTxCharacteristic->setValue("Failed to obtain time\n");
+    pTxCharacteristic->notify();
     return false;
   }
   //debug display time
@@ -694,10 +819,11 @@ boolean wifiTimeSet(){
   return true;
 }
 
-
+//reainging code taken from the BLE_UART example that
+//comes with the ESP32 arduino package
 void bluetoothSetup() {
   // Create the BLE Device
-  BLEDevice::init("ESPtest");
+  BLEDevice::init("ESP32 Clock");
 
   // Create the BLE Server
   pServer = BLEDevice::createServer();
