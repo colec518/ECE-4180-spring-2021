@@ -2,6 +2,20 @@
 #include <SmartMatrix.h>
 #include <time.h>
 
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+#include <WiFi.h>
+
+char bluetoothMode = 0;
+//0-map data to buttons
+//1-map data to wifi_ssid
+//2-map data to wifi_password
+std::string wifi_ssid = "";
+std::string wifi_password = "";
+long gmtOffsetSeconds = -4 * 3600;
+
 ////////////////////////////////////////////////////////////////////////////////
 //MATRIX VARIABLES
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,6 +110,25 @@ int currentDigit = 0;
 bool beepPlaying = 0;
 int beepTime = 0;
 
+////////////////////////////////////////////////////////////////////////////////
+//WIFI/BLUETOOTH VARIABLES
+////////////////////////////////////////////////////////////////////////////////
+
+#define DEBUG true
+
+BLEServer *pServer = NULL;
+BLECharacteristic * pTxCharacteristic;
+bool deviceConnected = false;
+bool oldDeviceConnected = false;
+uint8_t txValue = 0;
+
+// See the following for generating UUIDs:
+// https://www.uuidgenerator.net/
+
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E" // UART service UUID
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+
 void setup() {
   Serial.begin(115200);
 
@@ -121,6 +154,8 @@ void setup() {
   backgroundLayer.setFont(font5x7);
 
   lastMillis = millis();
+
+  bluetoothSetup();
 
 }
 
@@ -167,6 +202,7 @@ void loop() {
   }
 
   updateButtons();
+  bluetoothConnectionCheck();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -388,7 +424,7 @@ void handleAlarm() {
   }
 
   if (timeSinceAlarm >= alarmLightPeriod) {
-    if(millis() % 500 > 200) {
+    if (millis() % 500 > 200) {
       ledcWrite(0, 65535 / 2);
     }
     else {
@@ -536,4 +572,173 @@ void drawEditDate(tm *timeInfo) {
   }
 
   backgroundLayer.swapBuffers();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//WIFI/BLUETOOTH FUNCTIONS
+////////////////////////////////////////////////////////////////////////////////
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+    };
+
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+    }
+};
+
+//function to be called when data is recived
+class MyCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      std::string rxValue = pCharacteristic->getValue();
+      //handel the data
+      if (rxValue.length() > 0) {
+        if (DEBUG)Serial.println(rxValue.c_str());
+        switch (bluetoothMode) {
+          case 0:
+            //looking for a button press
+            if (rxValue.length() == 5 && rxValue.substr(0, 2) == "!B") {
+              //it is a button press
+              //check the checksum
+              //char sum=0;
+              //for(int a=0;a<4;a++) sum+=rxValue[a];
+              //if(sum==rxValue[4]){
+              //checksum is valid
+              //work only on button press
+              if (rxValue[3] == '0') {
+                //figure out wich button
+                switch (rxValue[2]) {
+                  case '1':
+                    handleButton(0);
+                    break;
+                  case '2':
+                    handleButton(1);
+                    break;
+                  case '3':
+                    handleButton(2);
+                    break;
+                  case '4':
+                    handleButton(3);
+                    break;
+                }
+              }
+              //}
+
+            }
+            break;
+          case 1:
+            wifi_ssid = rxValue.substr(0, rxValue.length() - 1);
+            pTxCharacteristic->setValue("Password:");
+            pTxCharacteristic->notify();
+            bluetoothMode = 2;
+            break;
+          case 2:
+            wifi_password = rxValue.substr(0, rxValue.length() - 1);
+            bluetoothMode = 0;
+            bool wifiRet = wifiTimeSet();
+            if (wifiRet) {
+              pTxCharacteristic->setValue("Connection Sucessful\n");
+              pTxCharacteristic->notify();
+            } else {
+              pTxCharacteristic->setValue("Connection Failure\n");
+              pTxCharacteristic->notify();
+            }
+            if (DEBUG)Serial.printf("wifiTimeSet return: %s\n", wifiRet ? "True" : "False");
+            break;
+        }
+        if (DEBUG)Serial.printf("Mode: %d\n", bluetoothMode);
+        if (DEBUG)Serial.printf("SSID: %s\n", wifi_ssid.c_str());
+        if (DEBUG)Serial.printf("Password: %s\n", wifi_password.c_str());
+        if (DEBUG)Serial.print("--------\n");
+        /*Serial.println("*********");
+          Serial.print("Received Value: ");
+          for (int i = 0; i < rxValue.length(); i++)
+          Serial.print(rxValue[i]);
+
+          Serial.println();
+          Serial.println("*********");*/
+      }
+    }
+};
+
+
+//will connect and get the time
+//true if sucsefull
+//false if failure
+boolean wifiTimeSet(){
+  //still needs to decide on the gmtOffset
+  if(DEBUG)Serial.printf("Connecting to %s ", wifi_ssid.c_str());
+  WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str());
+  while (WiFi.status() != WL_CONNECTED) {
+      //may need to protect from failures
+      if(WiFi.status() == WL_CONNECTION_LOST){
+        if(DEBUG)Serial.print(" Connection Failed\n");
+        return false;
+      }
+      delay(500);
+      if(DEBUG)Serial.print(".");
+  }
+  if(DEBUG)Serial.println(" CONNECTED");
+  //get the time from the web
+  //need to fix daylight savings
+  configTime(gmtOffsetSeconds, 3600, "pool.ntp.org","time.nist.gov");
+  //check if time was recived
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    if(DEBUG)Serial.println("Failed to obtain time");
+    return false;
+  }
+  //debug display time
+  if(DEBUG)Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+  return true;
+}
+
+
+void bluetoothSetup() {
+  // Create the BLE Device
+  BLEDevice::init("ESPtest");
+
+  // Create the BLE Server
+  pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  // Create the BLE Service
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+  // Create a BLE Characteristic
+  pTxCharacteristic = pService->createCharacteristic(
+                        CHARACTERISTIC_UUID_TX,
+                        BLECharacteristic::PROPERTY_NOTIFY
+                      );
+
+  pTxCharacteristic->addDescriptor(new BLE2902());
+
+  BLECharacteristic * pRxCharacteristic = pService->createCharacteristic(
+      CHARACTERISTIC_UUID_RX,
+      BLECharacteristic::PROPERTY_WRITE
+                                          );
+
+  pRxCharacteristic->setCallbacks(new MyCallbacks());
+
+  // Start the service
+  pService->start();
+
+  // Start advertising
+  pServer->getAdvertising()->start();
+}
+
+void bluetoothConnectionCheck() {
+  // disconnecting
+  if (!deviceConnected && oldDeviceConnected) {
+    delay(500); // give the bluetooth stack the chance to get things ready
+    pServer->startAdvertising(); // restart advertising
+    //if(DEBUG)Serial.println("start advertising");
+    oldDeviceConnected = deviceConnected;
+  }
+  // connecting
+  if (deviceConnected && !oldDeviceConnected) {
+    // do stuff here on connecting
+    oldDeviceConnected = deviceConnected;
+  }
 }

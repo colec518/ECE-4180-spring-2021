@@ -80,7 +80,7 @@ void handleButton(int bNum){
 //false if failure
 boolean wifiTimeSet(){
   //still needs to decide on the gmtOffset
-  if(DEBUG)Serial.printf("Connecting to %s ", wifi_ssid);
+  if(DEBUG)Serial.printf("Connecting to %s ", wifi_ssid.c_str());
   WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str());
   while (WiFi.status() != WL_CONNECTED) {
       //may need to protect from failures
