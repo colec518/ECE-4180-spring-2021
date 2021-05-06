@@ -4,7 +4,7 @@ This project uses a light panels and an ESP32 module to control it. The main fet
 ## Hardware
 ### Component List
 * ESP32 module
-* HUB75 RGB LED matrix (32x16)
+* [HUB75 RGB LED matrix (16x32)](https://learn.adafruit.com/32x16-32x32-rgb-led-matrix)
 * 4 buttons
 * 4 10k resistors
 * Class D audio Amp
