@@ -91,3 +91,6 @@ The same method as setting the time, but use the "set alarm" menue option insted
   * Better physical aperiance
   * Cleaner wiring
   * Better button layout and labeling
+## Authors
+Cole Carrow: @colec518  
+Ethan Brinser: @aplq
