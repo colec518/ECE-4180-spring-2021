@@ -54,6 +54,8 @@ enter / increase selected number | 3 | 4
 3. Select the "edit data" option using the "enter" button
 4. Use the "Up" and "Down" button to adjust the value and the "Left" and "Right" buttons to change which value is being edited
 5. To confirm the date move the selection of the right of the sceen by hitting the "Right" button when the years are being selected for editing
+### Setting The Alarm
+The same method as setting the time, but use the "set alarm" menue option insted of the "set time" option. The time set for the alarm is when the visual part of the alarm is started. The secondary auditory alarm will sart 5 minues after the time specified.
 ### Seting Up WiFi for Auto Time Set
 1. Connect to the clock using the [Adafruit Bluefruit LE Connect app](https://learn.adafruit.com/bluefruit-le-connect)
 2. Go to the UART terminal on the app
