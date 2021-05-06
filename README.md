@@ -41,8 +41,8 @@ Function | Button Number | Number On App
 ----|-----|-----
 left | 0 | 1
 right | 1 | 2
-down | back | 2 | 3
-up | enter | 3 | 4
+down / back | 2 | 3
+up / enter | 3 | 4
 ### Setting The Time Maunaly
 1. Press the enter Button to enter the the main menu
 2. Select the "edit time" option using the "enter" button
