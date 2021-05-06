@@ -39,17 +39,17 @@ The software is built using the [Arduino IDE](https://www.arduino.cc/en/software
 Buttons are numbered zero through 3 in software.
 Function | Button Number | Number On App
 ----|-----|-----
-move selection left | 0 | 1
-move selection right | 1 | 2
-back / decrease selected number | 2 | 3
-enter / increase selected number | 3 | 4
+left | 0 | 1
+right | 1 | 2
+down | back | 2 | 3
+up | enter | 3 | 4
 ### Setting The Time Maunaly
-1. Press the ___ Button to enter the the main menu
+1. Press the enter Button to enter the the main menu
 2. Select the "edit time" option using the "enter" button
-3. Use the "Up" and "Down" button to adjust the value and the "Left" and "Right" buttons to change which value is being edited
-4. To confirm the time move the selection of the right of the sceen by hitting the "Right" button when the minuets are being selected for editing
+3. Use the "up" and "down" button to adjust the value and the "Left" and "Right" buttons to change which value is being edited
+4. To confirm, move the selection off the screen (e.g. pressing left when the leftmost option is selected)
 ### Setting The Date Manualy
-1. Press the ___ Button to enter the the main menu
+1. Press the enter Button to enter the the main menu
 2. Use the "Left" and "Right" keys to move over to the "edit data" menu option.
 3. Select the "edit data" option using the "enter" button
 4. Use the "Up" and "Down" button to adjust the value and the "Left" and "Right" buttons to change which value is being edited
@@ -59,13 +59,11 @@ The same method as setting the time, but use the "set alarm" menue option insted
 ### Seting Up WiFi for Auto Time Set
 1. Connect to the clock using the [Adafruit Bluefruit LE Connect app](https://learn.adafruit.com/bluefruit-le-connect)
 2. Go to the UART terminal on the app
-3. On the clock push the ___ button to pull up the main menue
-4. use the "Up" and "Down" buttons to navigate to the "auto set" screen
-5. Select "auto set"
-6. Folow the directions on the app and on the clock display (they are the same) to enter your wiFi SSID and passowrd
-7. Select your standard timezone as its diffrence from GMT
+3. select "auto set" in the menu or send "w" in the UART terminal
+4. Folow the directions on the app and on the clock display (they are the same) to enter your wiFi SSID and passowrd
+5. Select your standard timezone as its diffrence from GMT
   * Example: Eastern Stanrd Time (EST) is GMT -5
-8. Select weather you are in an area the observes Daylight Saving Time (DST)
+6. Select weather you are in an area the observes Daylight Saving Time (DST)
 ## Ideas for future expantion
 * Suport more time zones
   * Currently only timezones that ate a whole number of hours from GMT are availible. Some regions use a fractional number hours as an offset from GMT.
