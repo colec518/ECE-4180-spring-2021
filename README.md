@@ -1,21 +1,37 @@
 # LED Pannel Clock
 ## Overview
-This project uses a light pannels and an ESP32 module to control it. The main feture is the ability to mimic daylight durring an alram. This is less intrucive than a traditional alram. There is a buzzer for providing a backup alarm. The Bluetooth low energy and WiFi capabilities of the ESP32 enable remote control via the [Adafruit Bluefruit LE Connect app](https://learn.adafruit.com/bluefruit-le-connect) and getting the current time from the internet.
+This project uses a light panels and an ESP32 module to control it. The main feture is the ability to mimic daylight durring an alram. This is less intrucive than a traditional alram. There is a buzzer for providing a backup alarm. The Bluetooth low energy and WiFi capabilities of the ESP32 enable remote control via the [Adafruit Bluefruit LE Connect app](https://learn.adafruit.com/bluefruit-le-connect) and getting the current time from the internet.
 ## Hardware
-### Componant List
+### Component List
 * ESP32 module
-* LED pannel
+* HUB75 RGB LED matrix (32x16)
 * 4 buttons
 * 4 10k resistors
 * Class D audio Amp
 * Speaker
 ### Pin Connections
 For Button functionality see the [Controls](##Controls) section.
-ESP32 Pin Name | Componant
--------------|-------------
-pin 1 | whatever
-pin 2 | next
-----|-----
+Function | ESP32 Pin | Notes
+-------------|-------------|-------------
+R Channel 1 | 2
+G Channel 1 | 15
+B Channel 1 | 4
+R Channel 2 | 16
+G Channel 2 | 27
+B Channel 2 | 17
+Row Select A | 5
+Row Select B | 18
+Row Select C | 19
+Row Select D | 21 | not used on 16 row matrix
+Row Select E | 12 | not used on 16 row matrix
+Matrix Clk | 22
+Matrix Data Latch | 26
+Matrix Output Enable | 25
+Button 1 | 34 | pull-up resistor required
+Button 2 | 35 | pull-up resistor required
+Button 3 | 36 | pull-up resistor required
+Button 4 | 39 | pull-up resistor required
+Speaker Output | 23 | connect to input of amplifier
 ## Software
 The software is built using the [Arduino IDE](https://www.arduino.cc/en/software). The Bluetooth and WiFi functionality comes from the [ESP32 library](https://github.com/espressif/arduino-esp32). BLuetooth connectivity was derived from [BLE_uart example code](https://github.com/espressif/arduino-esp32/tree/master/libraries/BLE/examples/BLE_uart). WiFifi time setting was derived from the [Simple Time example](https://github.com/espressif/arduino-esp32/blob/master/libraries/ESP32/examples/Time/SimpleTime/SimpleTime.ino). The LED pannel is controled using the [SmartMatrix](https://github.com/pixelmatix/SmartMatrix) library.
 ## Controls
@@ -23,10 +39,10 @@ The software is built using the [Arduino IDE](https://www.arduino.cc/en/software
 Buttons are numbered zero through 3 in software.
 Function | Button Number | Number On App
 ----|-----|-----
-fun0 | 0 | 1
-fun1 | 1 | 2
-fun2 | 2 | 3
-fun3 | 3 | 4
+move selection left | 0 | 1
+move selection right | 1 | 2
+back / decrease selected number | 2 | 3
+enter / increase selected number | 3 | 4
 ### Seting up WiFi
 1. Connect to the clock using the [Adafruit Bluefruit LE Connect app](https://learn.adafruit.com/bluefruit-le-connect)
 2. Go to the UART terminal on the app
