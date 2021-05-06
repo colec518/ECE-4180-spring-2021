@@ -748,6 +748,15 @@ class MyCallbacks: public BLECharacteristicCallbacks {
               //}
 
             }
+
+            if (rxValue[0] == 'w') {
+              programState = CONNECT_BLUETOOTH;   
+            }
+
+            if (rxValue[0] == 'a') {
+              alarmStartMillis = millis();
+              programState = ALARM_REACHED;
+            }
             break;
           case 1:
             wifi_ssid = rxValue.substr(0, rxValue.length() - 1);
