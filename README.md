@@ -1,7 +1,7 @@
 # LED Pannel Clock
 ## Overview
-This project uses a light panels and an ESP32 module to control it. The main feture is the ability to mimic daylight durring an alram. This is less intrucive than a traditional alram. There is a buzzer for providing a backup alarm. The Bluetooth low energy and WiFi capabilities of the ESP32 enable remote control via the [Adafruit Bluefruit LE Connect app](https://learn.adafruit.com/bluefruit-le-connect) and getting the current time from the internet.
-Presentation: https://www.youtube.com/watch?v=KeRrbEU9hHw
+This project uses a light panels and an ESP32 module to control it. The main feture is the ability to mimic daylight durring an alram. This is less intrucive than a traditional alram. There is a buzzer for providing a backup alarm. The Bluetooth low energy and WiFi capabilities of the ESP32 enable remote control via the [Adafruit Bluefruit LE Connect app](https://learn.adafruit.com/bluefruit-le-connect) and getting the current time from the internet.  
+Presentation: https://www.youtube.com/watch?v=KeRrbEU9hHw  
 Demo: https://www.youtube.com/watch?v=yBH9PZWiP2E
 ## Hardware
 ### Component List
